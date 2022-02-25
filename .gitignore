@@ -1,0 +1,5 @@
+# Ignore the __pycache__
+__pycache__
+#Ignore any plots
+*.png
+*.pdf
