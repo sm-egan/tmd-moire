@@ -620,7 +620,7 @@ def kpath(contour = 'KGammaK', step = 1):
         
     return np.array(path), xticks, xticklabels
 
-def plot_eigenlist(elist, xticks, xticklabels, pointstyle=None, ylimit = None, axhline = None, label = ''):
+def plot_eigenlist(elist, xticks, xticklabels, pointstyle=None, ylimit = None, axhline = None, label = None):
     if pointstyle is None:
         plt.plot(elist)
     else:
@@ -637,7 +637,8 @@ def plot_eigenlist(elist, xticks, xticklabels, pointstyle=None, ylimit = None, a
     plt.ylabel('Energy (meV)', size = 'xx-large')
     plt.xlabel('')
     plt.xticks(xticks, xticklabels, fontsize=15)
-    plt.savefig('spectrum-' + label + '.png', bbox_inches='tight')
+    if label is not None:
+        plt.savefig('spectrum-' + label + '.png', bbox_inches='tight')
     plt.show()
     
 def plot_grid(mesh, colour = None, grid = 'G', title='', clims = None, savename = None, pointsize=None):
