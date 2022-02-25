@@ -19,7 +19,7 @@ if __name__ == '__main__':
     murange = 'bandplusgap'
     
     mulim = muLimits(lims_file, 0, murange)
-    Nmu = 24 # How many mus to scan
+    Nmu = 50 # How many mus to scan
     band = 1
     
     fbz_mesh = make_kmesh(Rgrid)
@@ -42,43 +42,36 @@ if __name__ == '__main__':
     
         del Hplus
         
-        for mu in mu_list:
-            Bc = Berry_curv(k, mu, band, evals, evecs)
+        Bc = Berry_curv(k, band, evals, evecs)
             
-            try:
-                Bc_array = np.vstack((Bc_array, Bc))
-            except:
-                Bc_array = Bc
-                
-            try:
-                evals_array = np.vstack((evals_array, evals))
-            except:
-                evals_array = evals
+        try:
+            Bc_array = np.vstack((Bc_array, Bc))
+        except:
+            Bc_array = Bc
             
-            #print(Bc_array)
-            #print(evals_array)
+        try:
+            evals_array = np.vstack((evals_array, evals))
+        except:
+            evals_array = evals
                 
     # Reshape the data and swap axes of k, mu dof
     ### We do this so that Bc_mu_array[i] is all the data at fixed mu for different k values
-    Bc_mu_array = np.swapaxes(Bc_array.reshape((len(fbz_mesh), Nmu, 3)), 0, 1)
-    evals_mu_array = np.swapaxes(evals_array.reshape((len(fbz_mesh), Nmu, 100)), 0, 1)
     
     Mz_list = []
     susc_list = []
-    
-    for i in range(0, Nmu):               
-        bcq = BerryCurvQuantities(Bc_mu_array[i], band, mu_list[i], temp)
+                  
+    bcq = BerryCurvQuantities(Bc_array, band, mu_list, temp)
         
-        Mz_list.append(bcq.get_Mz(evals_mu_array[i]))
-        susc_list.append(bcq.get_orb_susc(evals_mu_array[i]))
+    Mz_int = bcq.get_Mz_int(evals_array[:,1])
+    Mz_edge = bcq.get_Mz_edge(evals_array[:,1])
+    susc = bcq.get_orb_susc(evals_array[:,1])
         
     #Mzs = np.sum(Fxy_list, axis=0)/len(fbz_mesh)
-    np.savez(savename, Mz = Bc_mu_array, susc = susc_list, mu = mu_list)
+    np.savez(savename, Mz = Bc_array, susc = susc_list, mu = mu_list)
     
-    plot_grid(fbz_mesh, np.sum(Bc_mu_array[15][:,1:3], axis=1)*AAng_to_muB, grid='FBZ')
-    plot_grid(fbz_mesh, Bc_mu_array[int(Nmu/2)][:, 0], grid='FBZ')
-    plot_grid(fbz_mesh, Bc_mu_array[int(Nmu/2)][:, 1], grid='FBZ')
-    plot_grid(fbz_mesh, Bc_mu_array[int(Nmu/2)][:, 0]*Bc_mu_array[15][:, 1], grid='FBZ')
+    plot_grid(fbz_mesh, Bc_array[:, 0], grid='FBZ')
+    plot_grid(fbz_mesh, Bc_array[:, 1], grid='FBZ')
+    plot_grid(fbz_mesh, Bc_array[:, 0]*Bc_array[:, 1], grid='FBZ')
     
     plot_vs_mu(mu_list, np.array(Mz_list), 'Mz', mu_list[int(Nmu/2)])
     plot_vs_mu(mu_list, np.array(susc_list), 'susc', mu_list[int(Nmu/2)])

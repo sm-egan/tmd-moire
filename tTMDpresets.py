@@ -47,16 +47,21 @@ paulis = np.array([
         ])
 
 def nFD(energy_meV, mu, T):
+    if isinstance(mu, np.ndarray):
+        mu = mu.reshape(mu.shape + (1,))
+        
     energy_J = (energy_meV - mu)*(eV/1000)
     if T == 0.:
-        if energy_J < 0:
-            return 1.
+        if isinstance(energy_J, np.ndarray):
+            return (energy_J < 0).astype(int)
         else:
-            return 0.
+            return int(energy_J < 0)
     else:
         return 1/(np.exp(energy_J/(kB*T)) + 1)
 
 def nFDprime(energy_meV, mu, T, tolerance = 1e-10):
+    if isinstance(mu, np.ndarray):
+        mu = mu.reshape(mu.shape + (1,))
     energy_J = np.array((energy_meV - mu)*(eV/1000), dtype= np.longdouble)
     if T == 0.:
         raise Exception('nFDprime not compatible with zero temperature')
@@ -412,7 +417,7 @@ def exp_spin(evals, evecs, nindex):
         
     return np.dot(np.conj(evecs[:,nindex]), Sz.dot(evecs[:,nindex]))
 
-def Berry_curv(k0, mu, nindex, evals, evecs, xi=1):
+def Berry_curv(k0, nindex, evals, evecs, xi=1):
     '''
     Calculates berry curvature (BC) and orbital magnetic moment (mm), both intrinsic and edge
 
@@ -442,7 +447,6 @@ def Berry_curv(k0, mu, nindex, evals, evecs, xi=1):
     dxHk = delHk(k0, 'x', xi)
     dyHk = delHk(k0, 'y', xi)
     
-    print('dxHk is type ' + str(type(dxHk)))
     # If 2nd and 3rd Moire band get reversed, swap them
         # I only do this for 2nd and 3rd because they are closest in energy --> most likely to get swapped
         # An easy fix would simply be to call np.sort
@@ -465,11 +469,11 @@ def Berry_curv(k0, mu, nindex, evals, evecs, xi=1):
         
         Bc_coeff = 1/(evals[nindex] - evals[mindex])**2
         m_coeff = e/(2*hbar)*(eV/1000)*(evals[mindex] - evals[nindex])*Bc_coeff
-        mtilde_coeff = e/hbar*(eV/1000)*(evals[nindex] - mu)*Bc_coeff
         
-        
-        dxdy = np.dot(np.conj(evecs[:,nindex]), dxHk.dot(evecs[:,mindex]))*np.dot(np.conj(evecs[:,mindex]), dyHk.dot(evecs[:,nindex]))
-        dydx = np.dot(np.conj(evecs[:,nindex]), dyHk.dot(evecs[:,mindex]))*np.dot(np.conj(evecs[:,mindex]), dxHk.dot(evecs[:,nindex])) 
+        #dxdy = np.dot(np.conj(evecs[:,nindex]), dxHk.dot(evecs[:,mindex]))*np.dot(np.conj(evecs[:,mindex]), dyHk.dot(evecs[:,nindex]))
+        #dydx = np.dot(np.conj(evecs[:,nindex]), dyHk.dot(evecs[:,mindex]))*np.dot(np.conj(evecs[:,mindex]), dxHk.dot(evecs[:,nindex])) 
+        dxdy =  (np.conj(evecs[:,nindex]) @ dxHk @ evecs[:,mindex])*(np.conj(evecs[:,mindex]) @ dyHk @ evecs[:,nindex])
+        dydx =  (np.conj(evecs[:,nindex]) @ dyHk @ evecs[:,mindex])*(np.conj(evecs[:,mindex]) @ dxHk @ evecs[:,nindex])
         
         # Testing purposes
         # if mindex < 5:
@@ -477,12 +481,11 @@ def Berry_curv(k0, mu, nindex, evals, evecs, xi=1):
         #     print(dxdy - dydx)
         
         # Note the minus sign in front of Bc
-        Bc_tot += -Bc_coeff*(dxdy - dydx)
+        Bc_tot += Bc_coeff*(dxdy - dydx)
         m_tot += m_coeff*(dxdy - dydx)
-        mtilde_tot += mtilde_coeff*(dxdy - dydx)
         
     # Returns in units of Ampere*Angstrom^2
-    return np.imag(np.array([Bc_tot, m_tot, mtilde_tot]))
+    return np.imag(np.array([-Bc_tot, m_tot]))
 
 class BerryCurvQuantities:
     def __init__(self, Bc_array, band, mu, temp=0):
@@ -495,7 +498,6 @@ class BerryCurvQuantities:
             2d array with shape (Nk, 3), where Nk is the number of k points used in FBZ mesh
             Bc_array[:,0] = berry curvature in Angstrom^2
             Bc_array[:,1] = intrinsic magnetic moment in A Angstrom^2
-            Bc_array[:,2] = edge magnetic moment in A Angstrom^2
             
         band : int
             band index.
@@ -512,20 +514,21 @@ class BerryCurvQuantities:
         None.
 
         '''
+        
         self._Bc_array = Bc_array
         self.band = band
-        self.mu = mu
+        self.mus = mu
         self.temp = temp
         
-    def get_Mz(self, evals):
+    def get_Mz_int(self, evals):
         '''
         Calculates the total orbital magnetization, which is k space sum of orbital magnetic moment
 
         Parameters
         ----------
         evals : ndarray
-            2d array with list of eigenvalues for all bands, k points.
-            evals[:, self.band] gives the list of eigenvalues for a single band.
+            1d array with list of eigenvalues for each k for given band
+            Should be indexed as evals_array[:, self.band]
 
         Returns
         -------
@@ -534,31 +537,51 @@ class BerryCurvQuantities:
 
         '''
         # Units: muB
-        mtot_list = AAng_to_muB*np.sum(self._Bc_array[:, 1:3], axis=1)
-        if self.temp == 0:
-            # Reduce list to include only k values where energy is below the chemical potential
-            mtot_list = mtot_list[evals[:, self.band] < self.mu]
-            
-        else:
-            mtot_list = mtot_list*nFD(evals[:,self.band], self.mu, self.temp)
+        # m_list should always be 1d
+        m_list = AAng_to_muB*self._Bc_array[:, 1]
+        fe = nFD(evals, self.mus, self.temp)
+        
+        m_list = m_list*fe
         # Units: muB/nm^2
-        return np.sum(mtot_list)/(len(evals)*Auc_nm)
+        if m_list.ndim == 1:
+            return np.sum(m_list)/(len(evals)*Auc_nm)
+        elif m_list.ndim == 2:
+            return np.sum(m_list, axis = 1)/(len(evals)*Auc_nm)
     
+    def get_Mz_edge(self, evals):
+        bc_list = self._Bc_array[:, 0]
+        fe = nFD(evals, self.mus, self.temp)
+        
+        if isinstance(self.mus, np.ndarray):
+            mus_rs = self.mus.reshape(self.mus.shape + (1,))
+            medge_list = (mus_rs - evals)*bc_list
+        else:
+            medge_list = (self.mus - evals)*bc_list
+        medge_list = e/hbar*(eV/1000)*AAng_to_muB*medge_list*fe
+        
+        if medge_list.ndim == 1:
+            return np.sum(medge_list)/(len(evals)*Auc_nm)
+        elif medge_list.ndim == 2:
+            return np.sum(medge_list, axis = 1)/(len(evals)*Auc_nm)
+        else:
+            print('Invalid number of dimensions')
+        
     def get_orb_susc(self, evals):
         m_int = AAng_to_muB*self._Bc_array[:,1] # Units: muB
-
         omega = self._Bc_array[:,0] # Units: Ang^2
         
+        fe = nFD(evals, self.mus, self.temp)
+        
         if self.temp == 0:     
-            susc_list = 2*e/(hbar/eV)*m_int*omega*AAng_to_muB # Units: muB^2/eV
-            # Reduce list to include only k values where energy is below the chemical potential
-            susc_list = susc_list[evals[:, self.band] < self.mu]
-        
+            susc_list = 2*e/(hbar/eV)*m_int*omega*AAng_to_muB*fe # Units: muB^2/eV
         else:
-            susc_list = -np.power(m_int,2)*nFDprime(evals, self.mu, self.temp)*eV + (2*e*eV)/hbar*m_int*omega*AAng_to_muB*nFD(evals, self.mu, self.temp) # Units: muB^2/eV
+            susc_list = -np.power(m_int, 2)*nFDprime(evals, self.mus, self.temp)*eV + (2*e*eV)/hbar*m_int*omega*AAng_to_muB*fe # Units: muB^2/eV
         
-        return np.sum(susc_list)/(len(evals)*Auc_nm) # Units: muB^2/(eV nm^2)
-    
+        if susc_list.ndim == 1:
+            return np.sum(susc_list)/(len(evals)*Auc_nm) # Units: muB^2/(eV nm^2)
+        if susc_list.ndim == 2:
+            return np.sum(susc_list, axis = 1)/(len(evals)*Auc_nm)
+        
 class GLFreeEnergy(BerryCurvQuantities):
     '''
     Child class of BerryCurvQuantities.
