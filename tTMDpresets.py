@@ -302,8 +302,6 @@ def VM():
                 
         indptr.append(indctr)
         
-    #print(indlist)
-    #print(indptr)
     data = np.array([block]*len(indlist))
     upper_mat = sp.bsr_matrix((data, np.array(indlist), np.array(indptr)), shape = (4*Nk, 4*Nk))
     
@@ -360,51 +358,6 @@ def delHk(k0, coord='x', xi=1):
     for point in kmesh:
         blocks = blocks + (delHk_block(kMvec(point, 'G') + k0, coord, xi),)
     return sp.block_diag(blocks).tocsr()
-
-# def Fxy_Mz(k0, mu, nindex, evals, evecs, as_array=False, xi=1):
-#     nbands = len(evals)
-#     dxHk = delHk(k0, 'x', xi)
-#     dyHk = delHk(k0, 'y', xi)
-    
-#     # If 2nd and 3rd Moire band get reversed, swap them
-#         # I only do this for 2nd and 3rd because they are closest in energy --> most likely to get swapped
-#     if evals[1] > evals[2]:
-#         print('Found swapped evals - reversing order')
-#         print(evals[0:4])
-#         evals[1], evals[2] = evals[2], evals[1]
-#         evecs[:,[1,2]] = evecs[:,[2,1]]
-    
-#     if as_array:
-#         #Allows you to store the contribution from each individual band in an array instead of adding them 
-#         # together straight away.  The function then returns an array.
-#         #Not extremely useful option in general, but I think I added it for testing purposes.
-#         Fxytot = np.array([], dtype=float)
-#         for mindex in range(0, nbands):
-#             if mindex == nindex:
-#                 Fxytot = np.append(Fxytot, 0)
-#             else:
-#                 coeff = (evals[mindex] + evals[nindex] - 2*mu)/(evals[nindex] - evals[mindex])**2
-#                 dxdy = np.dot(np.conj(evecs[:,nindex]), dxHk.dot(evecs[:,mindex]))*np.dot(np.conj(evecs[:,mindex]), dyHk.dot(evecs[:,nindex]))
-#                 dydx = np.dot(np.conj(evecs[:,nindex]), dyHk.dot(evecs[:,mindex]))*np.dot(np.conj(evecs[:,mindex]), dxHk.dot(evecs[:,nindex])) 
-                
-#                 Fxym = coeff*(dxdy - dydx)
-#                 Fxytot = np.append(Fxytot, Fxym)
-#     else:
-#         Fxytot = 0
-#         for mindex in range(0, nbands):
-#             if mindex == nindex:
-#                 continue
-            
-#             coeff = (evals[mindex] + evals[nindex] - 2*mu)/(evals[nindex] - evals[mindex])**2
-#             dxdy = np.dot(np.conj(evecs[:,nindex]), dxHk.dot(evecs[:,mindex]))*np.dot(np.conj(evecs[:,mindex]), dyHk.dot(evecs[:,nindex]))
-#             dydx = np.dot(np.conj(evecs[:,nindex]), dyHk.dot(evecs[:,mindex]))*np.dot(np.conj(evecs[:,mindex]), dxHk.dot(evecs[:,nindex])) 
-            
-#             #print('dxdy - dydx = ' + str((dxdy - dydx).imag))
-#             Fxym = coeff*(dxdy - dydx)
-            
-#             Fxytot += Fxym
-#     # Returns in units of Ampere*Angstrom^2
-#     return np.imag(Fxytot)*e/(2*hbar)*(eV/1000)
 
 def exp_spin(evals, evecs, nindex):
     # factor of 2 needed because for each k we have two spin, two layer dof
@@ -470,17 +423,9 @@ def Berry_curv(k0, nindex, evals, evecs, xi=1):
         Bc_coeff = 1/(evals[nindex] - evals[mindex])**2
         m_coeff = e/(2*hbar)*(eV/1000)*(evals[mindex] - evals[nindex])*Bc_coeff
         
-        #dxdy = np.dot(np.conj(evecs[:,nindex]), dxHk.dot(evecs[:,mindex]))*np.dot(np.conj(evecs[:,mindex]), dyHk.dot(evecs[:,nindex]))
-        #dydx = np.dot(np.conj(evecs[:,nindex]), dyHk.dot(evecs[:,mindex]))*np.dot(np.conj(evecs[:,mindex]), dxHk.dot(evecs[:,nindex])) 
         dxdy =  (np.conj(evecs[:,nindex]) @ dxHk @ evecs[:,mindex])*(np.conj(evecs[:,mindex]) @ dyHk @ evecs[:,nindex])
         dydx =  (np.conj(evecs[:,nindex]) @ dyHk @ evecs[:,mindex])*(np.conj(evecs[:,mindex]) @ dxHk @ evecs[:,nindex])
         
-        # Testing purposes
-        # if mindex < 5:
-        #     print(Bc_coeff)
-        #     print(dxdy - dydx)
-        
-        # Note the minus sign in front of Bc
         Bc_tot += Bc_coeff*(dxdy - dydx)
         m_tot += m_coeff*(dxdy - dydx)
         
@@ -752,10 +697,6 @@ class SaveInfo:
     def _set_filename(self):
         self.filename = self.tag + '_band' + str(self.band) + '_R' + str(Rgrid)
     
-#    def _set_ntrials(self, n):
-#        self.ntrials = n
-#        self._set_filename()
-    
     def save_data(self, array):
         #If file does not exist, make it and set ntrials to 1
         pathname = self.folder + '/' + self.filename + '.npz'
@@ -767,9 +708,7 @@ class SaveInfo:
         #If file does exist, open the array and make sure that the lengths match
         # If they do, then vstack the new data and resave the file with the same name, add to ntrials
         else:
-            #print('File exists already - adding to existing data')
             data_old = np.load(pathname)['data']
-            # print(data_old)
             try:
                 dsize = data_old.shape[1]
             except IndexError:
@@ -781,11 +720,8 @@ class SaveInfo:
                 asize = len(array)
                 
             if dsize == asize:
-                #self._set_ntrials(self.ntrials + array.shape[1])
                 data_new = np.vstack((data_old, array))
                 np.savez(pathname, data=data_new)
-                # print('New array is:')
-                # print(data_new)
                     
             else:
                 raise Exception('Length of input does not match file you wish to write to')

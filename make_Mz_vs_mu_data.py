@@ -34,13 +34,13 @@ if __name__ == '__main__':
 
     for point in fbz_mesh:
         k = kMvec(point, 'FBZ')
-        Hplus = Hxi(k, 0)
+        H = Hxi(k, 0, -1)
         
         print('k = {0}'.format(k.coords))
         
-        evals, evecs = eigsh(Hplus, k=100, which='SM')
+        evals, evecs = eigsh(H, k=100, which='SM')
     
-        del Hplus
+        del H
         
         Bc = Berry_curv(k, band, evals, evecs)
             
@@ -53,9 +53,6 @@ if __name__ == '__main__':
             evals_array = np.vstack((evals_array, evals))
         except:
             evals_array = evals
-                
-    # Reshape the data and swap axes of k, mu dof
-    ### We do this so that Bc_mu_array[i] is all the data at fixed mu for different k values
     
     Mz_list = []
     susc_list = []
@@ -66,13 +63,13 @@ if __name__ == '__main__':
     Mz_edge = bcq.get_Mz_edge(evals_array[:,1])
     susc = bcq.get_orb_susc(evals_array[:,1])
         
-    #Mzs = np.sum(Fxy_list, axis=0)/len(fbz_mesh)
-    np.savez(savename, Mz = Bc_array, susc = susc_list, mu = mu_list)
+    #np.savez(savename, Mz = Bc_array, mu = mu_list, evals = evals_array)
     
     plot_grid(fbz_mesh, Bc_array[:, 0], grid='FBZ')
     plot_grid(fbz_mesh, Bc_array[:, 1], grid='FBZ')
     plot_grid(fbz_mesh, Bc_array[:, 0]*Bc_array[:, 1], grid='FBZ')
     
-    plot_vs_mu(mu_list, np.array(Mz_list), 'Mz', mu_list[int(Nmu/2)])
-    plot_vs_mu(mu_list, np.array(susc_list), 'susc', mu_list[int(Nmu/2)])
+    plot_vs_mu(mu_list, Mz_int, 'Mz', mu_list[Nmu // 2])
+    plot_vs_mu(mu_list, Mz_edge, 'Mz', mu_list[Nmu // 2])
+    plot_vs_mu(mu_list, susc, 'susc', mu_list[Nmu // 2])
         

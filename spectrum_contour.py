@@ -36,20 +36,20 @@ if __name__ == '__main__':
 #        Hplus = H0p + HTp + Vmat
 #        Hminus = H0m + HTm + Vmat
         Hplus = Hxi(k, 0, 1)
-        #Hminus = Hxi(k,-1)
+        Hminus = Hxi(k,-1)
         
         evalsp, evecsp = eigsh(Hplus, k=24, which='SM')
         evalsp = np.sort(evalsp)
         
-        #evalsm, evecsm = eigsh(Hminus, k=24, which='SM')
-        #evalsm = np.sort(evalsm)
+        evalsm, evecsm = eigsh(Hminus, k=24, which='SM')
+        evalsm = np.sort(evalsm)
         
         try:
             eigenlistp = np.vstack((eigenlistp, evalsp))
-            #eigenlistm = np.vstack((eigenlistm, evalsm))
+            eigenlistm = np.vstack((eigenlistm, evalsm))
         except:
             eigenlistp = evalsp
-            #eigenlistm = evalsm
+            eigenlistm = evalsm
     
     band_top = np.array([])
     band_bottom = np.array([])
@@ -60,6 +60,7 @@ if __name__ == '__main__':
     
     plot_label = 'R' + str(R) + '_Nk' + str(len(path))      
     plot_eigenlist(eigenlistp, xticks, xticklabels, 'o')
+    plot_eigenlist(eigenlistm, xticks, xticklabels, 'o')
         
     np.savez('data/band_lims_R' + str(R), top = band_top, bottom = band_bottom)
         
