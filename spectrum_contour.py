@@ -26,17 +26,17 @@ if __name__ == '__main__':
         #print('kx = ' + str(k.get_x()))
         #print('ky = ' + str(k.get_y()))
         
-#        H0p = Hd(k, 1)
-#        HTp = HTeff(1)
+        #H0p = Hd(k,1)
+        #HTp = HTeff(1)
 #        Vmat = VM()
 #        
-#        H0m = Hd(k,-1)
-#        HTm = HTeff(-1)
+        #H0m = Hd(k,-1)
+        #HTm = HTeff(-1)
 #        
 #        Hplus = H0p + HTp + Vmat
 #        Hminus = H0m + HTm + Vmat
         Hplus = Hxi(k, 0, 1)
-        Hminus = Hxi(k,-1)
+        Hminus = Hxi(k, 0, -1)
         
         evalsp, evecsp = eigsh(Hplus, k=24, which='SM')
         evalsp = np.sort(evalsp)
@@ -62,7 +62,7 @@ if __name__ == '__main__':
     plot_eigenlist(eigenlistp, xticks, xticklabels, 'o')
     plot_eigenlist(eigenlistm, xticks, xticklabels, 'o')
         
-    np.savez('data/band_lims_R' + str(R), top = band_top, bottom = band_bottom)
+    #np.savez('data/band_lims_R' + str(R), top = band_top, bottom = band_bottom)
         
     #plot_eigenlist(eigenlistm, xticks, xticklabels)
     print('Run time: ' + str(time.process_time() - start))

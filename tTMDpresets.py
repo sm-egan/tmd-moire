@@ -10,6 +10,7 @@ from scipy.constants import k as kB
 from math import ceil
 import scipy.sparse as sp
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm
 import os.path
 
 #mu = 0 #meV
@@ -70,7 +71,7 @@ def nFDprime(energy_meV, mu, T, tolerance = 1e-10):
         # Replaced the above (commented) expression with the one below because the exp's became problematic when T is small
         #print('nFDprime: energy_J is: {0:}'.format(energy_J))
         # UNIT IS 1/JOULES
-        return 1/(2*kB*T)*1/(np.cosh(energy_J/(kB*T)) + 1)
+        return -1/(2*kB*T)*1/(np.cosh(energy_J/(kB*T)) + 1)
 
 # This may now be irrelevant because I made the nFD function usable outright
 def is_occupied(energy_meV, mu, T, ndecimals = 4):
@@ -368,7 +369,7 @@ def exp_spin(evals, evecs, nindex):
         evals[1], evals[2] = evals[2], evals[1]
         evecs[:,[1,2]] = evecs[:,[2,1]]
         
-    return np.dot(np.conj(evecs[:,nindex]), Sz.dot(evecs[:,nindex]))
+    return np.conj(evecs[:,nindex]) @ Sz.dot(evecs[:,nindex])
 
 def Berry_curv(k0, nindex, evals, evecs, xi=1):
     '''
@@ -465,6 +466,16 @@ class BerryCurvQuantities:
         self.mus = mu
         self.temp = temp
         
+    def get_Bc(self, evals):
+        fe = nFD(evals, self.mus, self.temp)
+        bc_list = self._Bc_array[:, 0]*fe
+        
+        if bc_list.ndim == 1:
+            return np.sum(bc_list)/(2*pi*len(evals)*Auc_nm)
+        elif bc_list.ndim == 2:
+            return np.sum(bc_list, axis = 1)/(2*pi*len(evals)*Auc_nm)
+        
+    
     def get_Mz_int(self, evals):
         '''
         Calculates the total orbital magnetization, which is k space sum of orbital magnetic moment
@@ -491,6 +502,7 @@ class BerryCurvQuantities:
         if m_list.ndim == 1:
             return np.sum(m_list)/(len(evals)*Auc_nm)
         elif m_list.ndim == 2:
+            print('M_list is 2 dimensional')
             return np.sum(m_list, axis = 1)/(len(evals)*Auc_nm)
     
     def get_Mz_edge(self, evals):
@@ -511,16 +523,18 @@ class BerryCurvQuantities:
         else:
             print('Invalid number of dimensions')
         
-    def get_orb_susc(self, evals):
+    def get_orb_susc(self, evals, edge = True):
         m_int = AAng_to_muB*self._Bc_array[:,1] # Units: muB
         omega = self._Bc_array[:,0] # Units: Ang^2
         
         fe = nFD(evals, self.mus, self.temp)
         
         if self.temp == 0:     
-            susc_list = 2*e/(hbar/eV)*m_int*omega*AAng_to_muB*fe # Units: muB^2/eV
+            susc_list = e/(hbar/eV)*m_int*omega*AAng_to_muB*fe # Units: muB^2/eV
         else:
-            susc_list = -np.power(m_int, 2)*nFDprime(evals, self.mus, self.temp)*eV + (2*e*eV)/hbar*m_int*omega*AAng_to_muB*fe # Units: muB^2/eV
+            susc_list = -np.power(m_int, 2)*nFDprime(evals, self.mus, self.temp)*eV # Units: muB^2/eV
+            if edge:
+                susc_list = susc_list + (e*eV)/hbar*m_int*omega*AAng_to_muB*fe 
         
         if susc_list.ndim == 1:
             return np.sum(susc_list)/(len(evals)*Auc_nm) # Units: muB^2/(eV nm^2)
@@ -641,7 +655,7 @@ def plot_eigenlist(elist, xticks, xticklabels, pointstyle=None, ylimit = None, a
         plt.savefig('spectrum-' + label + '.png', bbox_inches='tight')
     plt.show()
     
-def plot_grid(mesh, colour = None, grid = 'G', title='', clims = None, savename = None, pointsize=None):
+def plot_grid(mesh, colour = None, grid = 'G', title='', clims = None, savename = None, pointsize=None, cvalue = 'mz'):
     xlist = []
     ylist = []
     
@@ -669,8 +683,11 @@ def plot_grid(mesh, colour = None, grid = 'G', title='', clims = None, savename 
             plt.scatter(xlist, ylist, c=colour, cmap = 'Spectral', s=size, marker=mark, vmin=-minmax, vmax=minmax)
         else:
             plt.scatter(xlist, ylist, c=colour, cmap = 'Spectral', s=size, marker=mark, vmin=clims[0], vmax=clims[1])
-           
-    plt.colorbar().set_label(label = r'$m_z(\mathbf{k})$ ($\mu_B$)', size=15)
+    
+    if colour is not None and cvalue == 'mz':
+        plt.colorbar().set_label(label = r'$m_z(\mathbf{k})$ ($\mu_B$)', size=15)
+    elif colour is not None and cvalue == 'Berrycurv':
+        plt.colorbar().set_label(label = r'$\Omega(\mathbf{k})$ ($\mathrm{\AA}$)', size=15)
     plt.xticks(fontsize=13)
     plt.yticks(fontsize=13)
     plt.xlabel(r'$k_x$', size='xx-large')
@@ -795,27 +812,83 @@ class muLimits:
             raise Warning('muLimits: You did not enter a valid range type')
         
 
-def plot_vs_mu(mu_list, y_list, y_type = 'Mz', band_top = None, title = None):
-    plt.scatter(mu_list, y_list, marker='o', s = 100)
-    if band_top is not None:
-        plt.axvline(band_top, color='black', linestyle='--')
-        try:
-            plt.axhline(y_list[mu_list == band_top][0], color='black', linestyle='--')
-        except:
-            print('mu_list does not contain element eactly equal to band_top')
+def plot_vs_mu(mu_list, y_list, ytype = 'Mz', band_region = None, title = None, marker = None, xlims = None, ylims = None, logy = False, show = True):
+    if marker is None:
+        plt.plot(mu_list, y_list, linewidth = 4)
+    else:
+        plt.scatter(mu_list, y_list, marker=marker, s = 100)
+        
+    if logy:
+        plt.yscale('log')
+    # if band_top is not None:
+    #     plt.axvline(band_top, color='black', linestyle='--')
+    #     try:
+    #         plt.axhline(y_list[mu_list == band_top][0], color='black', linestyle='--')
+    #     except:
+    #         print('mu_list does not contain element eactly equal to band_top')
+    if band_region is not None:
+        plt.axvspan(band_region[0], band_region[1], color='grey', alpha=0.4)
         
     plt.xlabel(r'$\mu$ (meV)', size='xx-large')
-    if y_type == 'Mz':
+    if ytype == 'Mz':
         plt.ylabel(r'$M_z$ ($\mu_B/nm^2$)', size = 'xx-large')
-    elif y_type == 'susc':
+    elif ytype == 'Mz_muB':
+        plt.ylabel(r'$M_z$ ($\mu_B$ / Moire supercell)', size = 'xx-large')
+    elif ytype == 'susc':
+        plt.axhline(0, color='black', linestyle='--')
         plt.ylabel(r'$\chi_{orb}$ ($\mu_B \, eV^{-1} \, nm^{-2}$)', size = 'xx-large')
-    elif y_type == 'Bc':
+    elif ytype == 'Bc':
         plt.ylabel(r'$B_c$ (T)', size = 'xx-large')
     plt.xticks(fontsize=15)
     plt.yticks(fontsize=15)
+    if xlims is not None:
+        plt.xlim(xlims[0], xlims[1])
+    if ylims is not None:
+        plt.ylim(ylims[0], ylims[1])
     plt.grid(axis='both', which='both')
     if title is not None:
-        plt.title(title)
+        plt.title(title, size='xx-large')
+    if show:
+        plt.show()
+    
+def plot_Mz_vs_mu(mu_list, mint, medge, band_region = None, title = None, marker = None, xlims = None, ylims = None, logy = False, ytype = 'Mz'):
+    if marker is None:
+        plt.plot(mu_list, mint + medge, linewidth = 5, label = r'$m_z^{int} + m_z^{(\Omega)}$', color = cm.cool(1/3))
+        plt.plot(mu_list, mint, '--', linewidth = 4, label = r'$m_z^{int}$', color = cm.cool(2/3))
+        plt.plot(mu_list, medge, '-.', linewidth = 4, label = r'$m_z^{(\Omega)}$', color = cm.cool(3/3))
+    else:
+        plt.scatter(mu_list, mint + medge, marker=marker, s = 100, label = r'$m_z^{int} + m_z^{edge}$')
+        plt.scatter(mu_list, mint, marker=marker, s = 100, label = r'$m_z^{int}$')
+        plt.scatter(mu_list, medge, marker=marker, s = 100, label = r'$m_z^{edge}$')
+        
+    if ytype == 'Mz':
+        plt.ylabel(r'$M_z$ ($\mu_B/nm^2$)', size = 'xx-large')
+    elif ytype == 'Mz_muB':
+        plt.ylabel(r'$M_z$ ($\mu_B$ / Moire supercell)', size = 'xx-large')
+   
+    if logy:
+        plt.yscale('log')
+    # if band_top is not None:
+    #     plt.axvline(band_top, color='black', linestyle='--')
+    #     try:
+    #         plt.axhline(y_list[mu_list == band_top][0], color='black', linestyle='--')
+    #     except:
+    #         print('mu_list does not contain element eactly equal to band_top')
+    if band_region is not None:
+        plt.axvspan(band_region[0], band_region[1], color='grey', alpha=0.4)
+        
+    plt.xlabel(r'$\mu$ (meV)', size='xx-large')
+    plt.legend(fontsize=15)
+
+    plt.xticks(fontsize=15)
+    plt.yticks(fontsize=15)
+    if xlims is not None:
+        plt.xlim(xlims[0], xlims[1])
+    if ylims is not None:
+        plt.ylim(ylims[0], ylims[1])
+    plt.grid(axis='both', which='both')
+    if title is not None:
+        plt.title(title, size='xx-large')
     plt.show()
         
         

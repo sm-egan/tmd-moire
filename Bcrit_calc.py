@@ -18,7 +18,7 @@ if __name__ == '__main__':
     band = 1
     temp = 1 # 1e-3 = 1 mK
     
-    Bc_array = np.load('data/Bc_mu-211_band1_R20.npz')['data']
+    Bc_array = np.load('data/Mz_susc_mu-band1_R32.npz')['data']
     evals = np.load('data/evals_band{0:}_R20.npz'.format(band))['data']
     band_top = np.load('data/band_lims_R6.npz')['top']
     band_bottom = np.load('data/band_lims_R6.npz')['bottom']    
