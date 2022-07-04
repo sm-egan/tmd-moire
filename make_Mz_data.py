@@ -38,7 +38,7 @@ if __name__ == '__main__':
             evals, evecs = eigsh(Hplus, k=100, which='SM') # 'SM' means take smallest magnitude eigenvalues
             #print('Eigenvalue problem time: ' + str(time.process_time() - start))             
             
-            Bc = Berry_curv(k, mu, band, evals, evecs)
+            Bc = Berry_curv(k, band, evals, evecs)
             try:
                 Bc_array = np.vstack((Bc_array, Bc))
             except:

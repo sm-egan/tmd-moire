@@ -43,7 +43,8 @@ if __name__ == '__main__':
             bcq = BerryCurvQuantities(Bc_array, band, mu_list, T)
             Bc = bcq.get_Bc(evals_array[:,band])
             Mz_int = bcq.get_Mz_int(evals_array[:,band])
-            Mz_edge = bcq.get_Mz_edge(evals_array[:,band])
+            mk_edge = bcq.get_mk_edge(evals_array[:,band])
+            Mz_edge = bcq.get_Mz_edge(mk_edge)
             susc = bcq.get_orb_susc(evals_array[:,band], True)
             if band == 0:
                 mu_mask = (mu_list > band_bottom[band] - bandwidth[band]) & (mu_list < band_top[band] + 2*bandwidth[band])
@@ -56,7 +57,12 @@ if __name__ == '__main__':
             #     title = 'Band {}'.format(band + 1) + ', C = ' + chern_band[band]
             #     plot_grid(fbz_mesh, AAng_to_muB*Bc_array[:,0], grid='FBZ', title = title, cvalue='Berrycurv')
             #     plot_grid(fbz_mesh, AAng_to_muB*Bc_array[:,1], grid='FBZ', title = title)
-                
+            
+            if band == 1:
+                ind_band1 = np.argmin(np.abs(mu_list-band_top[1]))
+                plot_grid(fbz_mesh, mk_edge[ind_band1], grid='FBZ', title = title)
+                Mz_edge_band1 = Mz_edge
+            
             if band == 0:
                 Bc_arr = Bc
                 Mz_int_arr = Mz_int
@@ -126,5 +132,3 @@ if __name__ == '__main__':
     plt.grid(axis='both', which='both')
     plt.show()
 
-    
-    

@@ -29,7 +29,7 @@ meff = 0.5*m_e #kg
 
 muB = physical_constants['Bohr magneton'][0]
 mu0 = physical_constants['vacuum mag. permeability'][0]
-# Converts m(q) units from A Angstrom^2 to muB. 1e-20 converts from Angstrom^2 to m^2
+# Converts m(k) units from A Angstrom^2 to muB. 1e-20 converts from Angstrom^2 to m^2
 AAng_to_muB = 1e-20/muB
 
 Gj = 4*pi/(np.sqrt(3)*a) # 1/Angstrom
@@ -379,8 +379,6 @@ def Berry_curv(k0, nindex, evals, evecs, xi=1):
     ----------
     k0 : kMvec
         k point at which to evaluate.
-    mu : float
-        chemical potential.
     nindex : int
         band index.
     evals : ndarray
@@ -430,8 +428,8 @@ def Berry_curv(k0, nindex, evals, evecs, xi=1):
         Bc_tot += Bc_coeff*(dxdy - dydx)
         m_tot += m_coeff*(dxdy - dydx)
         
-    # Returns in units of Ampere*Angstrom^2
-    return np.imag(np.array([-Bc_tot, m_tot]))
+    # Bc_tot in units of Ang^2, m_tot in units of muB
+    return np.imag(np.array([-Bc_tot, AAng_to_muB*m_tot]))
 
 class BerryCurvQuantities:
     def __init__(self, Bc_array, band, mu, temp=0):
@@ -500,26 +498,68 @@ class BerryCurvQuantities:
         m_list = m_list*fe
         # Units: muB/nm^2
         if m_list.ndim == 1:
-            return np.sum(m_list)/(len(evals)*Auc_nm)
+            return np.sum(m_list)/len(evals)
         elif m_list.ndim == 2:
-            print('M_list is 2 dimensional')
-            return np.sum(m_list, axis = 1)/(len(evals)*Auc_nm)
-    
-    def get_Mz_edge(self, evals):
-        bc_list = self._Bc_array[:, 0]
-        fe = nFD(evals, self.mus, self.temp)
+            #print('M_list is 2 dimensional')
+            return np.sum(m_list, axis = 1)/len(evals)
         
+    def get_mk_edge(self, evals):
+        '''
+
+        Parameters
+        ----------
+        evals : ndarray
+            Array of eigenvalues enk for band n.
+
+        Raises
+        ------
+        Exception
+            Terminates calculation if the argument is too large to be computed.
+
+        Returns
+        -------
+        ndarray
+            array of mk,edge in units of muB.  May be either ndim = 1 (single mu) or ndim = 2 (list of mu)
+
+        '''
+        bc_list = self._Bc_array[:, 0] #Extract Berry curvature \Omega from Bc_array
+        
+        # If there is a list of mus use broadcasting to compute the pre-factor
         if isinstance(self.mus, np.ndarray):
-            mus_rs = self.mus.reshape(self.mus.shape + (1,))
-            medge_list = (mus_rs - evals)*bc_list
+            mu_list = self.mus.reshape(self.mus.shape + (1,))
+        else: #else if computing for single mu
+            mu_list = self.mus
+        #     medge_list = (mus_rs - evals)*bc_list
+        # else:
+        #     medge_list = (self.mus - evals)*bc_list
+        if self.temp == 0:
+            medge_list = e/hbar*(eV/1000)*(mu_list - evals)*nFD(evals, self.mus, self.temp)*bc_list
         else:
-            medge_list = (self.mus - evals)*bc_list
-        medge_list = e/hbar*(eV/1000)*AAng_to_muB*medge_list*fe
+            x = -(evals - mu_list)/(kB*self.temp/(eV/1000))
+            if np.any(x > 7e2):
+                raise Exception('np.exp cannot compute such large positive arguments')
+            medge_list = e/hbar*kB*self.temp*np.log(1 + np.exp(x))*bc_list
+                
+        return medge_list*AAng_to_muB
+    
+    def get_Mz_edge(self, medge_list):
+        '''
         
+        Parameters
+        ----------
+        medge_list : ndarray
+            Array of mk,edge computed using get_mk_edge in units of muB.
+
+        Returns
+        -------
+        float
+            DESCRIPTION.
+
+        '''
         if medge_list.ndim == 1:
-            return np.sum(medge_list)/(len(evals)*Auc_nm)
+            return np.sum(medge_list)/len(self._Bc_array)
         elif medge_list.ndim == 2:
-            return np.sum(medge_list, axis = 1)/(len(evals)*Auc_nm)
+            return np.sum(medge_list, axis = 1)/len(self._Bc_array)
         else:
             print('Invalid number of dimensions')
         
