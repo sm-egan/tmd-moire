@@ -57,11 +57,7 @@ if __name__ == '__main__':
             #     title = 'Band {}'.format(band + 1) + ', C = ' + chern_band[band]
             #     plot_grid(fbz_mesh, AAng_to_muB*Bc_array[:,0], grid='FBZ', title = title, cvalue='Berrycurv')
             #     plot_grid(fbz_mesh, AAng_to_muB*Bc_array[:,1], grid='FBZ', title = title)
-            
-            if band == 1:
-                ind_band1 = np.argmin(np.abs(mu_list-band_top[1]))
-                plot_grid(fbz_mesh, mk_edge[ind_band1], grid='FBZ', title = title)
-                Mz_edge_band1 = Mz_edge
+        
             
             if band == 0:
                 Bc_arr = Bc

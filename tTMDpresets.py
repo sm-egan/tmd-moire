@@ -412,8 +412,6 @@ def Berry_curv(k0, nindex, evals, evecs, xi=1):
     Bc_tot = 0
     # m = intrinsic magnetic moment
     m_tot = 0
-    # mtilde = edge state magnetic moment
-    mtilde_tot = 0
     
     for mindex in range(0, nbands):
         if mindex == nindex:
@@ -695,7 +693,7 @@ def plot_eigenlist(elist, xticks, xticklabels, pointstyle=None, ylimit = None, a
         plt.savefig('spectrum-' + label + '.png', bbox_inches='tight')
     plt.show()
     
-def plot_grid(mesh, colour = None, grid = 'G', title='', clims = None, savename = None, pointsize=None, cvalue = 'mz'):
+def plot_grid(mesh, colour = None, grid = 'G', title='', plottype = 'scatter', clims = None, savename = None, pointsize=None, cvalue = 'mz'):
     xlist = []
     ylist = []
     
@@ -709,21 +707,27 @@ def plot_grid(mesh, colour = None, grid = 'G', title='', clims = None, savename 
         mark = 'H'
     else:
         mark = 'o'
+    if clims == None:
+        minmax = np.max(np.abs(colour))
         
-    if pointsize is not None:
-        size = pointsize
-    else:
-        # Change size in proportion to R=8 case, which for a (9,8) size figure looks best wiht pointsize=700 (FBZ case)
-        size = N_unitcells(8)*700/len(mesh)
-    if colour is None:
-        plt.scatter(xlist, ylist, s=size, marker=mark)
-    else:
-        if clims == None:
-            minmax = np.max(np.abs(colour))
-            plt.scatter(xlist, ylist, c=colour, cmap = 'Spectral', s=size, marker=mark, vmin=-minmax, vmax=minmax)
+    if plottype == 'scatter':
+        if pointsize is not None:
+            size = pointsize
         else:
-            plt.scatter(xlist, ylist, c=colour, cmap = 'Spectral', s=size, marker=mark, vmin=clims[0], vmax=clims[1])
-    
+            # Change size in proportion to R=8 case, which for a (9,8) size figure looks best wiht pointsize=700 (FBZ case)
+            size = N_unitcells(8)*700/len(mesh)
+        if colour is None:
+            plt.scatter(xlist, ylist, s=size, marker=mark)
+        else:
+            if clims == None:
+                plt.scatter(xlist, ylist, c=colour, cmap = 'Spectral', s=size, marker=mark, vmin=-minmax, vmax=minmax)
+            else:
+                plt.scatter(xlist, ylist, c=colour, cmap = 'Spectral', s=size, marker=mark, vmin=clims[0], vmax=clims[1])
+    elif plottype == 'contour':
+        if colour is not None:
+            plt.tricontourf(xlist, ylist, colour, levels = 20, cmap = 'Spectral', vmin=-minmax, vmax=minmax)
+            
+        
     if colour is not None and cvalue == 'mz':
         plt.colorbar().set_label(label = r'$m_z(\mathbf{k})$ ($\mu_B$)', size=15)
     elif colour is not None and cvalue == 'Berrycurv':

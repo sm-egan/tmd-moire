@@ -12,19 +12,25 @@ from tTMDpresets import *
 import matplotlib.pyplot as plt  
 plt.rcParams["figure.figsize"] = (9,8)
 import time
+import matplotlib
+
+matplotlib.rcParams["mathtext.rm"] = 'serif'
+matplotlib.rcParams["mathtext.fontset"] = 'cm'
+matplotlib.rcParams['font.family'] = 'serif'
+matplotlib.rcParams['font.serif'] = 'Century'
+
+# set the font globally
+plt.rcParams.update({'font.family':'serif'})
 
 if __name__ == '__main__':
     band_top = np.load('data/band_lims_R6.npz')['top']
     band_bottom = np.load('data/band_lims_R6.npz')['bottom']
-    # Set chemical potential to one bandwidth above the top of the band
-    mus = 2*band_top - band_bottom
-    
+    # Set chemical potential to one bandwidth above the top of the band    
     fbz_mesh = make_kmesh(Rgrid)
+    spin = True
     
-    for band in range(1,2):
-        mu = mus[band]
-        
-        savename = 'Mz' + '_band' + str(band) + '_R' + str(Rgrid) + '_mu{:+.2f}'.format(mu)
+    for band in range(1,4):
+        savename = 'Mz' + '_band' + str(band) + '_R' + str(Rgrid)
         savename = savename.replace('.', '_')
         print('BAND = ' + str(band))
         
@@ -44,13 +50,13 @@ if __name__ == '__main__':
             except:
                 Bc_array = Bc
             
-            Sz = exp_spin(evals, evecs, band)
-            #print('Sz for point ' + str(point) + ' is: ' + str(Sz))
-            try:
-                Sz_array = np.append(Sz_array, Sz)
-            except:
-                Sz_array = np.array([Sz])
-            
+            if spin:
+                Sz = exp_spin(evals, evecs, band)
+                #print('Sz for point ' + str(point) + ' is: ' + str(Sz))
+                try:
+                    Sz_array = np.append(Sz_array, Sz)
+                except:
+                    Sz_array = np.array([Sz])
             try:
                 evalslist = np.vstack((evalslist, evals))
             except:
@@ -59,20 +65,29 @@ if __name__ == '__main__':
             #print(eigenlist.shape)
             del Hplus, evals, evecs
 
-        Mz = AAng_to_muB*np.sum(Bc_array[:,1:3])/(len(Bc_array)*Auc_nm)
-        Szavg = np.mean(Sz_array).real
+        
+        if spin:
+            Szavg = np.average(np.real(Sz_array))
+            plot_grid(fbz_mesh, np.real(Sz_array), grid='FBZ', title=r'$\left\langle S_z \right\rangle = $' + str(Szavg), plottype = 'contour')
+            print('Sz list shape is: {0:}'.format(Sz_array.shape))
+            si_sz = SaveInfo(band, 'Sz')
+            si_sz.save_data(Sz_array)
+        
+        bcq = BerryCurvQuantities(Bc_array, band, band_top[band])
+        mk_int = Bc_array[:,1]
+        mk_edge = bcq.get_mk_edge(evalslist[:,band])
+        mk_tot = mk_int + mk_edge
+        Mz = np.sum(mk_tot)/len(mk_tot)
 
-        plot_grid(fbz_mesh, np.sum(Bc_array[:,1:3], axis=1)*AAng_to_muB, grid='FBZ', title=r'$M_z = $' + str(Mz) + ' $\mu_B/nm^2$', savename = savename)
-        plot_grid(fbz_mesh, Sz_array, grid='FBZ', title=r'$\left\langle S_z \right\rangle = $' + str(Szavg))
+        plot_grid(fbz_mesh, mk_tot, grid='FBZ', title=r'$M_z = ${0:.2f} $\mu_B$ / u.c.'.format(Mz), plottype = 'contour')
+        
+        plot_grid(fbz_mesh, mk_int, grid='FBZ', title=r'$M_z = ${0:.2f} $\mu_B$ / u.c.'.format(np.average(mk_int)), plottype = 'contour')
+        plot_grid(fbz_mesh, mk_edge, grid='FBZ', title=r'$M_z = ${0:.2f} $\mu_B$ / u.c.'.format(np.average(mk_edge)), plottype = 'contour')
         
         print('Bc list shape is: {0:}'.format(Bc_array.shape))
-        si = SaveInfo(band, 'Bc_mu{0:3d}'.format(int(mu*10)))
+        si = SaveInfo(band, 'Bc')
         si.save_data(Bc_array)
-        
-        print('Sz list shape is: {0:}'.format(Sz_array.shape))
-        si_sz = SaveInfo(band, 'Sz')
-        si_sz.save_data(Sz_array)
-        
+
         print('Eigenlist shape is: {0:}'.format(evalslist.shape))
         si_evals = SaveInfo(band, 'evals')
         si_evals.save_data(evalslist)
